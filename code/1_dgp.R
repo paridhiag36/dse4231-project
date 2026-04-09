@@ -1,7 +1,3 @@
-# install.packages("glmnet")   # lasso regression
-# install.packages("grf")      # random forest nuisance estimation
-# Do the above in wd Rlearner before starting project
-
 # =============================================================
 # FILE: dgp.R
 # PURPOSE: Functions that generate fake datasets for simulation
