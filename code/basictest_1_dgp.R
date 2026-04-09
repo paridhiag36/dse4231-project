@@ -3,7 +3,7 @@ source("code/1_dgp.R")
 
 
 # SIMPLEST TEST
-# generate 200 fake people
+# generate 20000 fake people
 dat <- gen_setup_1(n = 20000)
 
 # check the shape of everything
