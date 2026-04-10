@@ -21,7 +21,7 @@ source("code/learners_lasso.R")
 
 # helper: run n_reps replications for one setup
 # returns matrix of MSE values (n_reps x 4 learners)
-run_stability_test <- function(dgp_fn, n = 1000, n_reps = 10,
+run_stability_test <- function(dgp_fn, n = 1000, n_reps = 500,
                                setup_name = "") {
   
   results <- matrix(NA, nrow = n_reps, ncol = 4)
@@ -88,17 +88,17 @@ set.seed(42)
 
 res_1 <- run_stability_test(gen_setup_1,
                             n          = 1000,
-                            n_reps     = 10,
+                            n_reps     = 500,
                             setup_name = "Setup 1: Hard confounding")
 
 res_2 <- run_stability_test(gen_setup_2,
                             n          = 1000,
-                            n_reps     = 10,
+                            n_reps     = 500,
                             setup_name = "Setup 2: RCT")
 
 res_3 <- run_stability_test(gen_setup_3,
                             n          = 1000,
-                            n_reps     = 10,
+                            n_reps     = 500,
                             setup_name = "Setup 3: Sign flip")
 
 
