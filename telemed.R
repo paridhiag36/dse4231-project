@@ -417,6 +417,6 @@ legend("topleft",
        col    = c("blue", "red", "black"),
        pch    = c(16, 17, NA),
        lty    = c(NA, NA, 1),
-       cex    = 0.7)
+       cex    = 0.5)
 
 par(mfrow = c(1, 1))
