@@ -266,14 +266,12 @@ rlasso_fit = rlasso(x, w, y)
 rlasso_est = predict(rlasso_fit, x)
 
 cat("Fitting rboost...\n")
-rboost_fit = rboost(x, w, y, verbose = T, num_search_rounds = 3)
+rboost_fit = rboost(x, w, y, verbose = T)
 rboost_est = predict(rboost_fit, x)
 
 cat("Fitting rkern...\n")
 # Reduced grid for exploratory use
-rkern_fit = rkern(x, w, y,
-                  b_range      = 10^(seq(-1, 2, 1)),   # 4 values instead of 13
-                  lambda_range = 10^(seq(-1, 2, 1)))   # 4 values instead of 13
+rkern_fit = rkern(x, w, y)
 rkern_est = predict(rkern_fit, x)
 
 learners = list(rlasso = rlasso_est,

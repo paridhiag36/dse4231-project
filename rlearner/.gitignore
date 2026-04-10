@@ -1,0 +1,15 @@
+*.Rout
+*.aux
+*.blg
+*.log
+*.out
+*.gz
+*.toc
+*.nav
+*.snm
+*.DS_Store
+*.RData
+*.Rapp.history
+*.Rhistory
+*.ipynb
+.Rproj.user
