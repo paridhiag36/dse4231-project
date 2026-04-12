@@ -16,8 +16,8 @@ library(furrr)
 # CONFIGURATION
 # ============================================================
 
-n_iter   = 100     # number of iterations
-n        = 250     # total sample size per iteration
+n_iter   =200     # number of iterations
+n        = 300     # total sample size per iteration
 n_train  = 200     # training set size
 n_test   = 100      # test set size
 sigma    = 5       # noise SD for outcome Y
@@ -143,7 +143,7 @@ run_one_iteration = function(iter_seed, n, n_train, n_test,
     x3_t < 3        # relaxed from 2 to 3
   
   # Skip iteration if any subgroup is too small
-  if (sum(sg1) < 3 | sum(sg2) < 3 | sum(sg3) < 3) {
+  if (sum(sg1) < 5 | sum(sg2) < 5 | sum(sg3) < 5) {
     return(list(
       seed    = iter_seed,
       skipped = TRUE,
