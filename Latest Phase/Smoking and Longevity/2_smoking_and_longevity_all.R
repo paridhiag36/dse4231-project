@@ -255,17 +255,17 @@ x3_test = x_test[, "lung_baseline"]
 x4_test = x_test[, "health_literacy"]
 x5_test = x_test[, "stress"]
 
-sg1 = x1_test <  55 &   # younger working-age adult
-  x3_test >  75 &   # good baseline lung function
-  x5_test <   4 &   # low stress
-  x4_test >  14     # health-literate
+sg1 = x1_test <  60 &   # younger working-age adult
+  x3_test >  70 &   # good baseline lung function
+  x5_test <   5 &   # low stress
+  x4_test >  12     # health-literate
 
-sg2 = x1_test >  70 &   # elderly
-  x3_test <  55 &   # clinically impaired lung function
-  x5_test >   7     # chronically stressed
+sg2 = x1_test >  65 &   # elderly
+  x3_test <  60 &   # clinically impaired lung function
+  x5_test >   6     # chronically stressed
 
-sg3 = x2_test <  40 &   # low income
-  x4_test <   5     # low health literacy
+sg3 = x2_test <  50 &   # low income
+  x4_test <   7     # low health literacy
 
 min_sg_size = 5
 
