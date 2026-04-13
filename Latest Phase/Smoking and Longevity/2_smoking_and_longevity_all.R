@@ -29,7 +29,7 @@ library(KRLS2)      # kernel ridge regression
 library(jsonlite)   # JSON export
 
 set.seed(42)
-n = 500   # increased from 200 to ensure interpretable results
+n = 1000   # increased from 200 to ensure interpretable results
 
 # ============================================================
 # SECTION 1: COVARIATE GENERATION
@@ -219,7 +219,7 @@ cat("True ATE:        ", round(mean(tau_x), 3), "\n")
 # ============================================================
 
 set.seed(42)
-train_idx = sample(1:n, size = 240, replace = FALSE)
+train_idx = sample(1:n, size = 800, replace = FALSE)
 test_idx  = setdiff(1:n, train_idx)
 
 x_train  = x[train_idx, ];  x_test  = x[test_idx, ]
@@ -227,7 +227,7 @@ w_train  = w[train_idx];    w_test  = w[test_idx]
 y_train  = y[train_idx];    y_test  = y[test_idx]
 tau_test = tau_x[test_idx]
 
-cat("\n=== TRAIN-TEST SPLIT (240 / 60) ===\n")
+cat("\n=== TRAIN-TEST SPLIT (80% / 20%) ===\n")
 cat("Train — n:", length(train_idx),
     "| treated:", sum(w_train),
     "| rate:", round(mean(w_train), 3), "\n")
@@ -637,7 +637,6 @@ cat("  SG3_Inflated  YES     confounding inflating tau estimate for SG3\n")
 
 # --- PLOT A: Propensity score distribution by arm ---
 # Unique to this setup — visually demonstrates the imbalance challenge
-par(mfrow = c(1, 3))
 
 hist(propensity[w == 0], breaks = 20,
      col  = rgb(0.2, 0.4, 0.8, 0.5),
@@ -856,7 +855,7 @@ results_json = list(
   learner_results= learner_results
 )
 
-json_path = "smoking_results.json"
+json_path = "smoking_results_1000.json"
 write(toJSON(results_json, auto_unbox = TRUE), json_path)
 cat("Results exported to:", json_path, "\n")
 
@@ -874,3 +873,25 @@ cat("  Learners with SG3 inflation (confounding detected):",
 correct_ord = summary_df$Learner[summary_df$Correct_Order %in% TRUE]
 cat("  Learners with correct severity ordering:",
     ifelse(length(correct_ord) > 0, paste(correct_ord, collapse=", "), "none"), "\n")
+
+# n=300 results
+#  True ATE (test): 2.593 
+#  Treatment rate:  0.05 
+#  n_treated_train: 12 
+#  Best learner:    xboost (NormMSE = 1.0601 )
+#  Learners with SG3 inflation (confounding detected): xboost, rlasso, xlasso, tlasso
+#  Learners with correct severity ordering: xboost
+
+# n=500 results
+#  True ATE (test): 2.54 
+#  Treatment rate:  0.058 
+#  n_treated_train: 24
+#  Best learner:    xkern (NormMSE = 0.6967 )
+#  Learners with SG3 inflation (confounding detected): rboost, xboost 
+#  Learners with correct severity ordering: skern 
+
+
+
+
+
+
