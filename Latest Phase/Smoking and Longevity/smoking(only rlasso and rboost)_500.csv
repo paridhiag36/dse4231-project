@@ -1,0 +1,2 @@
+"n","seed","n_treated","treatment_rate","true_ate","tau_sd","true_sg1","true_sg2","true_sg3","sg1_n","sg2_n","sg3_n","rlasso_norm_mse","rlasso_rank_corr","rlasso_rec_sg1","rlasso_rec_sg2","rlasso_rec_sg3","rlasso_order","rlasso_sg3_inflated","rboost_norm_mse","rboost_rank_corr","rboost_rec_sg1","rboost_rec_sg2","rboost_rec_sg3","rboost_order","rboost_sg3_inflated"
+500,42,29,0.058,3.2032,2.2377,0.5985,7.4134,4.6552,70,36,61,1.23,0.3251,6.2747,0.7392,0.7055,FALSE,FALSE,1.0708,NA,6.36,0.5135,0.8177,FALSE,FALSE
