@@ -83,13 +83,14 @@ for (it in valid) {
   true_sg1     <- s(it$true_sg1)
   true_sg2     <- s(it$true_sg2)
   
-  # Per-iteration zero_pred nMSE — used as dynamic baseline
-  zero_nmse <- s(it$results$zero_pred$norm_mse)
-  
+  # Per-iteration zero_pred MSE — used as dynamic baseline
+  zero_raw_mse <- s(it$results$zero_pred$raw_mse)
+  zero_nmse    <- s(it$results$zero_pred$norm_mse)
+
   for (lname in LEARNERS) {
-    
+
     r <- it$results[[lname]]
-    
+
     rows[[length(rows) + 1]] <- list(
       seed          = seed,
       learner       = lname,
@@ -97,7 +98,9 @@ for (it in valid) {
       tau_sd        = tau_sd,
       true_sg1      = true_sg1,
       true_sg2      = true_sg2,
+      zero_raw_mse  = zero_raw_mse,
       zero_nmse     = zero_nmse,
+      raw_mse       = s(r$raw_mse),
       norm_mse      = s(r$norm_mse),
       rank_corr     = s(r$rank_corr),
       mean_tau      = s(r$mean_tau),
@@ -126,6 +129,7 @@ cat("Total learner-iteration rows:", nrow(df_iter), "\n")
 df_iter <- df_iter %>%
   mutate(
     # Ratio vs zero predictor — below 1.0 means beats zero prediction
+    mse_vs_zero    = raw_mse  / zero_raw_mse,
     nmse_vs_zero   = norm_mse / zero_nmse,
     
     # ATE bias — how far the learner's mean prediction is from true ATE
@@ -152,13 +156,16 @@ compute_metrics <- function(df) {
   learner_name <- unique(df$learner)
   
   tau_var_mean <- mean(df$tau_sd^2, na.rm = TRUE)
-  
+
+  # --- MSE distribution ---
+  mse_vals     <- df$raw_mse
+
   # --- nMSE distribution ---
   nmse_vals    <- df$norm_mse
-  
+
   # --- Beats zero predictor ---
-  beats_zero   <- mean(df$nmse_vs_zero < 1.0, na.rm = TRUE)
-  pct_bad      <- mean(df$nmse_vs_zero > 1.0, na.rm = TRUE)
+  beats_zero   <- mean(df$mse_vs_zero < 1.0, na.rm = TRUE)
+  pct_bad      <- mean(df$mse_vs_zero > 1.0, na.rm = TRUE)
   
   # --- Rank correlation ---
   rc_vals      <- df$rank_corr[!is.na(df$rank_corr)]
@@ -195,25 +202,38 @@ compute_metrics <- function(df) {
   bias_mean  <- mean(bias_vals, na.rm = TRUE)
   bias_sd    <- sd(bias_vals,   na.rm = TRUE)
   
-  # --- Bias-variance decomposition (population level) ---
-  # norm_mse = bias^2/var(tau) + variance/var(tau)
-  # ATE-level bias^2 normalised by mean tau variance across iterations
-  norm_bias_sq <- mean(bias_vals^2, na.rm = TRUE) / tau_var_mean
-  norm_mse_mean <- mean(nmse_vals, na.rm = TRUE)
-  norm_variance  <- max(0, norm_mse_mean - norm_bias_sq)
-  
+  # --- Bias-variance decomposition (population level, raw MSE scale) ---
+  # mse = bias^2 + variance
+  # ATE-level bias^2 using raw MSE
+  bias_sq   <- mean(bias_vals^2, na.rm = TRUE)
+  mse_mean  <- mean(mse_vals,    na.rm = TRUE)
+  variance  <- max(0, mse_mean - bias_sq)
+
+  # --- Bias-variance decomposition (normalised MSE scale, for reference) ---
+  norm_bias_sq  <- mean(bias_vals^2, na.rm = TRUE) / tau_var_mean
+  norm_mse_mean <- mean(nmse_vals,   na.rm = TRUE)
+  norm_variance <- max(0, norm_mse_mean - norm_bias_sq)
+
   # Assemble into named vector — will become rows in long format
   list(
     learner = learner_name,
-    
-    # nMSE
+
+    # MSE (raw)
+    mse_median = pct(mse_vals, 50),
+    mse_p10    = pct(mse_vals, 10),
+    mse_p25    = pct(mse_vals, 25),
+    mse_p75    = pct(mse_vals, 75),
+    mse_p90    = pct(mse_vals, 90),
+    mse_mean   = mse_mean,
+
+    # nMSE (normalised, kept for reference)
     nmse_median = pct(nmse_vals, 50),
     nmse_p10    = pct(nmse_vals, 10),
     nmse_p25    = pct(nmse_vals, 25),
     nmse_p75    = pct(nmse_vals, 75),
     nmse_p90    = pct(nmse_vals, 90),
     nmse_mean   = norm_mse_mean,
-    
+
     # vs zero predictor
     pct_beats_zero = beats_zero,
     pct_worse_zero = pct_bad,
@@ -252,7 +272,11 @@ compute_metrics <- function(df) {
     ate_bias_mean = bias_mean,
     ate_bias_sd   = bias_sd,
     
-    # Bias-variance decomposition
+    # Bias-variance decomposition (raw MSE scale)
+    bias_sq      = bias_sq,
+    variance     = variance,
+
+    # Bias-variance decomposition (normalised MSE scale, for reference)
     norm_bias_sq  = norm_bias_sq,
     norm_variance = norm_variance
   )
@@ -281,6 +305,7 @@ df_long <- df_wide %>%
   # Add a grouping column so plots can facet by metric family
   mutate(
     metric_group = case_when(
+      grepl("^mse",         metric) ~ "MSE",
       grepl("^nmse",        metric) ~ "nMSE",
       grepl("zero",         metric) ~ "vs_zero_pred",
       grepl("rank_corr",    metric) ~ "rank_correlation",
@@ -460,13 +485,13 @@ cat("DGP summary written to:", OUTPUT_DGP, "\n\n")
 cat("=== QUICK SANITY CHECK ===\n\n")
 
 key_metrics <- df_long %>%
-  filter(metric %in% c("nmse_median","pct_beats_zero",
+  filter(metric %in% c("mse_median","nmse_median","pct_beats_zero",
                        "rank_corr_mean","sign_both_rate",
                        "rec_sg1_p50","rec_sg2_p50",
                        "ate_bias_mean")) %>%
   select(learner, metric, value) %>%
   pivot_wider(names_from = metric, values_from = value) %>%
-  arrange(nmse_median)
+  arrange(mse_median)
 
 print(as.data.frame(key_metrics), digits = 3)
 

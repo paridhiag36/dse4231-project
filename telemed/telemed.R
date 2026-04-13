@@ -332,25 +332,14 @@ learners = list(rlasso = rlasso_est,
 # Three complementary measures as discussed previously
 # ============================================================
 
-tau_variance = var(tau_x)
-
-cat("\n=== MEASURE 1: NORMALISED MSE ===\n")
-cat("Variance of true tau(X):", round(tau_variance, 4), "\n\n")
+cat("\n=== MEASURE 1: MSE ===\n")
 
 for (name in names(learners)) {
-  est      = learners[[name]]
-  raw_mse  = mean((est - tau_x)^2)
-  norm_mse = raw_mse / tau_variance
-  
-  quality  = ifelse(norm_mse < 0.25, "EXCELLENT",
-                    ifelse(norm_mse < 0.75, "ACCEPTABLE",
-                           ifelse(norm_mse < 1.00, "POOR",
-                                  "WORSE THAN MEAN")))
-  
+  est     = learners[[name]]
+  raw_mse = mean((est - tau_x)^2)
+
   cat("Learner:", name, "\n")
-  cat("  Raw MSE:        ", round(raw_mse,  4), "\n")
-  cat("  Normalised MSE: ", round(norm_mse, 4), "\n")
-  cat("  Performance:    ", quality, "\n\n")
+  cat("  MSE: ", round(raw_mse, 4), "\n\n")
 }
 
 cat("Baseline (constant mean prediction) MSE:",
@@ -548,31 +537,16 @@ learners_all = list(
 # ============================================================
 
 cat("===========================================\n")
-cat("MEASURE 1: NORMALISED MSE\n")
-cat("===========================================\n")
-cat("Variance of true tau(X):", round(tau_variance, 4), "\n")
-cat("Note: normalised MSE = 1.0 means no better than zero predictor\n\n")
+cat("MEASURE 1: MSE\n")
+cat("===========================================\n\n")
 
 for (name in names(learners_all)) {
-  est      = learners_all[[name]]
-  raw_mse  = mean((est - tau_x)^2)
-  norm_mse = raw_mse / tau_variance
-  
-  quality  = ifelse(norm_mse < 0.25, "EXCELLENT",
-                    ifelse(norm_mse < 0.75, "ACCEPTABLE",
-                           ifelse(norm_mse < 1.00, "POOR",
-                                  "WORSE THAN MEAN")))
-  
-  cat("Learner:", name, "\n")
-  cat("  Raw MSE:        ", round(raw_mse,  4), "\n")
-  cat("  Normalised MSE: ", round(norm_mse, 4), "\n")
-  cat("  Performance:    ", quality, "\n\n")
-}
+  est     = learners_all[[name]]
+  raw_mse = mean((est - tau_x)^2)
 
-# Sanity check: zero predictor normalised MSE should equal exactly 1.0
-# because MSE of zero predictor = E[tau^2] = var(tau) when mean(tau) ~ 0
-cat("Sanity check — zero predictor normalised MSE should be ~1.0:",
-    round(mean((zero_pred - tau_x)^2) / tau_variance, 4), "\n\n")
+  cat("Learner:", name, "\n")
+  cat("  MSE: ", round(raw_mse, 4), "\n\n")
+}
 
 cat("===========================================\n")
 cat("MEASURE 2: RANK CORRELATION\n")
@@ -652,26 +626,28 @@ cat("===========================================\n")
 cat("FULL SUMMARY TABLE\n")
 cat("===========================================\n")
 
+tau_variance = var(tau_x)
 summary_rows = list()
 
 for (name in names(learners_all)) {
   est      = learners_all[[name]]
   raw_mse  = mean((est - tau_x)^2)
   norm_mse = raw_mse / tau_variance
-  
+
   rank_corr = ifelse(sd(est) < 1e-10, NA,
                      cor(est, tau_x, method = "spearman"))
-  
+
   est_sg1  = mean(est[sg1])
   est_sg2  = mean(est[sg2])
   rec_sg1  = round(est_sg1 / true_sg1, 3)
   rec_sg2  = round(est_sg2 / true_sg2, 3)
-  
+
   sign_sg1 = sign(est_sg1) == sign(true_sg1)
   sign_sg2 = sign(est_sg2) == sign(true_sg2)
-  
+
   summary_rows[[name]] = data.frame(
     Learner    = name,
+    MSE        = round(raw_mse,  3),
     Norm_MSE   = round(norm_mse, 3),
     Rank_Corr  = ifelse(is.na(rank_corr), "NA", round(rank_corr, 3)),
     Rec_SG1    = rec_sg1,
@@ -685,6 +661,7 @@ summary_table = do.call(rbind, summary_rows)
 print(summary_table, row.names = FALSE)
 
 cat("\nInterpretation guide:\n")
+cat("  MSE: raw mean squared error between estimated and true tau\n")
 cat("  Norm_MSE  < 1.0 means better than zero predictor\n")
 cat("  Rank_Corr > 0.5 means meaningful individual ranking\n")
 cat("  Rec_SG1/2 close to 1.0 means correct subgroup magnitude\n")

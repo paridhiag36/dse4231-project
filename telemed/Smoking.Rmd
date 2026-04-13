@@ -159,38 +159,20 @@ learners = list(
 )
 
 # ---------------------------------------------------------
-# MEASURE 1: Normalised MSE
-# Raw MSE scaled by variance of true tau
-# Interpretation:
-#   < 0.25 = excellent  (capturing > 75% of true heterogeneity)
-#   0.25 to 0.75 = acceptable
-#   > 1.00 = no better than predicting the mean effect for everyone
+# MEASURE 1: MSE
+# Mean squared error between estimated and true tau
 # ---------------------------------------------------------
 
 cat("===========================================\n")
-cat("MEASURE 1: Normalised MSE\n")
-cat("===========================================\n")
-
-tau_variance = var(tau_x)
-cat("Variance of true tau(X):", round(tau_variance, 4), "\n")
-cat("Raw MSE threshold for 'no better than mean':", 
-    round(tau_variance, 4), "\n\n")
+cat("MEASURE 1: MSE\n")
+cat("===========================================\n\n")
 
 for (name in names(learners)) {
-  est       = learners[[name]]
-  raw_mse   = mean((est - tau_x)^2)
-  norm_mse  = raw_mse / tau_variance
-  
-  # Classify performance
-  quality = ifelse(norm_mse < 0.25, "EXCELLENT",
-            ifelse(norm_mse < 0.75, "ACCEPTABLE",
-            ifelse(norm_mse < 1.00, "POOR",
-                                    "WORSE THAN MEAN")))
-  
+  est     = learners[[name]]
+  raw_mse = mean((est - tau_x)^2)
+
   cat("Learner:", name, "\n")
-  cat("  Raw MSE:        ", round(raw_mse, 4), "\n")
-  cat("  Normalised MSE: ", round(norm_mse, 4), "\n")
-  cat("  Performance:    ", quality, "\n\n")
+  cat("  MSE: ", round(raw_mse, 4), "\n\n")
 }
 
 # Baseline comparison: what if we just predict the mean tau for everyone?
@@ -296,9 +278,11 @@ cat("===========================================\n")
 cat("SUMMARY TABLE\n")
 cat("===========================================\n")
 
+tau_variance = var(tau_x)
+
 summary_table = data.frame(
   Learner     = character(),
-  Raw_MSE     = numeric(),
+  MSE         = numeric(),
   Norm_MSE    = numeric(),
   Rank_Corr   = numeric(),
   Recovery    = numeric(),
@@ -312,10 +296,10 @@ for (name in names(learners)) {
   rank_corr= cor(est, tau_x, method = "spearman")
   est_gap  = mean(est[high_risk]) - mean(est[low_risk])
   recovery = est_gap / true_gap
-  
+
   summary_table = rbind(summary_table, data.frame(
     Learner   = name,
-    Raw_MSE   = round(raw_mse, 3),
+    MSE       = round(raw_mse, 3),
     Norm_MSE  = round(norm_mse, 3),
     Rank_Corr = round(rank_corr, 3),
     Recovery  = round(recovery, 3)

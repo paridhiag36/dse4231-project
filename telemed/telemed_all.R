@@ -481,9 +481,9 @@ for (base in c("lasso", "boost", "kern")) {
   for (ml in c("r", "s", "t", "x")) {
     nm = paste0(ml, base)
     m  = metrics_list[[nm]]
-    cat(sprintf("  %-10s | NormMSE: %5.3f (%s) | RankCorr: %s (%s)\n",
+    cat(sprintf("  %-10s | MSE: %7.4f | NormMSE: %5.3f | RankCorr: %s (%s)\n",
                 m$learner,
-                m$norm_mse, m$quality_mse,
+                m$raw_mse, m$norm_mse,
                 ifelse(is.na(m$rank_corr), "  NA ", sprintf("%5.3f", m$rank_corr)),
                 m$quality_rank))
     cat(sprintf("             | SG1: est=%6.3f true=%6.3f rec=%5.3f sign=%s\n",
@@ -514,9 +514,9 @@ for (ml in c("r", "s", "t", "x")) {
   for (base in c("lasso", "boost", "kern")) {
     nm = paste0(ml, base)
     m  = metrics_list[[nm]]
-    cat(sprintf("  %-10s | NormMSE: %5.3f | RankCorr: %s | Sign SG1: %s | Sign SG2: %s\n",
+    cat(sprintf("  %-10s | MSE: %7.4f | NormMSE: %5.3f | RankCorr: %s | Sign SG1: %s | Sign SG2: %s\n",
                 m$learner,
-                m$norm_mse,
+                m$raw_mse, m$norm_mse,
                 ifelse(is.na(m$rank_corr), "   NA", sprintf("%5.3f", m$rank_corr)),
                 ifelse(m$sign_sg1, "CORRECT", "WRONG"),
                 ifelse(m$sign_sg2, "CORRECT", "WRONG")))
@@ -536,6 +536,7 @@ cat("===========================================\n")
 summary_df = do.call(rbind, lapply(metrics_list, function(m) {
   data.frame(
     Learner   = m$learner,
+    MSE       = m$raw_mse,
     Norm_MSE  = m$norm_mse,
     MSE_Grade = m$quality_mse,
     Rank_Corr = ifelse(is.na(m$rank_corr), "NA",
@@ -550,10 +551,11 @@ summary_df = do.call(rbind, lapply(metrics_list, function(m) {
   )
 }))
 
-summary_df = summary_df[order(summary_df$Norm_MSE), ]
+summary_df = summary_df[order(summary_df$MSE), ]
 print(summary_df, row.names = FALSE)
 
 cat("\nInterpretation guide:\n")
+cat("  MSE: raw mean squared error between estimated and true tau\n")
 cat("  Norm_MSE  < 1.0 means better than constant zero predictor\n")
 cat("  Rank_Corr > 0.5 means meaningful individual ranking\n")
 cat("  Rec_SG1/2 close to 1.0 means correct subgroup magnitude\n")
@@ -726,6 +728,7 @@ subgroup_truth = list(
 learner_results = lapply(metrics_list, function(m) {
   list(
     learner      = m$learner,
+    raw_mse      = m$raw_mse,
     norm_mse     = m$norm_mse,
     mse_grade    = m$quality_mse,
     rank_corr    = m$rank_corr,
@@ -760,6 +763,7 @@ comparison_by_metalearner = lapply(names(by_metalearner), function(ml) {
     list(learner    = nm,
          base       = sub("^[rstx]", "", nm),
          metalearner= ml,
+         raw_mse    = m$raw_mse,
          norm_mse   = m$norm_mse,
          rank_corr  = m$rank_corr,
          sign_sg1   = m$sign_sg1,
@@ -775,6 +779,7 @@ comparison_by_base = lapply(names(by_base_method), function(base) {
     list(learner    = nm,
          metalearner= toupper(substr(nm, 1, 1)),
          base       = base,
+         raw_mse    = m$raw_mse,
          norm_mse   = m$norm_mse,
          rank_corr  = m$rank_corr,
          sign_sg1   = m$sign_sg1,
@@ -799,8 +804,8 @@ cat("Results exported to:", json_path, "\n")
 
 cat("\nDone. Key findings:\n")
 cat("  True ATE (test):     ", round(mean(tau_test), 3), "mmHg\n")
-cat("  Best NormMSE learner:", summary_df$Learner[1], "(",
-    summary_df$Norm_MSE[1], ")\n")
+cat("  Best MSE learner:    ", summary_df$Learner[1], "(",
+    summary_df$MSE[1], ")\n")
 cat("  Learners with correct SG1 AND SG2 sign:\n")
 correct_both = summary_df$Learner[summary_df$Sign_SG1 == TRUE &
                                     summary_df$Sign_SG2 == TRUE]

@@ -250,7 +250,7 @@ run_one_iteration = function(iter_seed, n, n_train, n_test,
     if (all(is.na(est))) {
       return(list(
         learner    = name, failed = TRUE,
-        norm_mse   = NA, rank_corr = NA,
+        raw_mse    = NA, norm_mse = NA, rank_corr = NA,
         mean_tau   = NA,
         est_sg1    = NA, rec_sg1 = NA, sign_sg1 = NA,
         est_sg2    = NA, rec_sg2 = NA, sign_sg2 = NA,
@@ -271,6 +271,7 @@ run_one_iteration = function(iter_seed, n, n_train, n_test,
     list(
       learner    = name,
       failed     = FALSE,
+      raw_mse    = round(raw_mse,  6),
       norm_mse   = round(norm_mse, 6),
       rank_corr  = ifelse(is.na(rank_corr), NA, round(rank_corr, 6)),
       mean_tau   = round(mean(est, na.rm=TRUE), 6),
@@ -354,6 +355,8 @@ learner_names = c("rlasso","rboost","rkern",
 # For each learner, collect metrics across completed iterations
 summarise_learner = function(lname) {
   
+  raw_mse_vec   = sapply(completed, function(it)
+    it$results[[lname]]$raw_mse)
   norm_mse_vec  = sapply(completed, function(it)
     it$results[[lname]]$norm_mse)
   rank_corr_vec = sapply(completed, function(it)
@@ -391,6 +394,7 @@ summarise_learner = function(lname) {
     learner       = lname,
     n_valid       = n_valid,
     n_failed      = sum(failed_vec, na.rm=TRUE),
+    raw_mse       = ci(raw_mse_vec),
     norm_mse      = ci(norm_mse_vec),
     rank_corr     = ci(rank_corr_vec),
     sign_sg1_rate = round(mean(sign_sg1_vec, na.rm=TRUE), 4),
@@ -428,7 +432,7 @@ cat(sprintf("True ATE across iterations: mean=%.3f SD=%.3f 95%%CI [%.3f, %.3f]\n
             true_ate_summary$ci_lo, true_ate_summary$ci_hi))
 
 cat(sprintf("%-12s | %s | %s | %s | %s\n",
-            "Learner", "NormMSE mean[CI]", "RankCorr mean[CI]",
+            "Learner", "MSE mean[CI]", "RankCorr mean[CI]",
             "SignSG1%", "SignSG2%"))
 cat(strrep("-", 80), "\n")
 
@@ -436,7 +440,7 @@ for (nm in learner_names) {
   s = summary_by_learner[[nm]]
   cat(sprintf("%-12s | %.3f [%.3f,%.3f] | %s | %.0f%% | %.0f%%\n",
               nm,
-              s$norm_mse$mean, s$norm_mse$ci_lo, s$norm_mse$ci_hi,
+              s$raw_mse$mean, s$raw_mse$ci_lo, s$raw_mse$ci_hi,
               ifelse(is.na(s$rank_corr$mean), "  NA [NA,  NA]",
                      sprintf("%.3f [%.3f,%.3f]",
                              s$rank_corr$mean,
