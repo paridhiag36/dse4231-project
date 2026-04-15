@@ -602,9 +602,9 @@ cat("      TopK lift    = average true tau in predicted top group divided by ove
 dir.create(OUTPUT_DIR, recursive = TRUE, showWarnings = FALSE)
 
 iter_csv = file.path(OUTPUT_DIR,
-                     sprintf("smoking_iterresults_adapted_n%d_%diters.csv", N_TOTAL, N_ITER))
+                     sprintf("3_smoking_multi_iter_n%d_%diters.csv", N_TOTAL, N_ITER))
 summary_csv = file.path(OUTPUT_DIR,
-                        sprintf("smoking_summary_adapted_n%d_%diters.csv", N_TOTAL, N_ITER))
+                        sprintf("3_smoking_multi_iter_summary_n%d_%diters.csv", N_TOTAL, N_ITER))
 
 write.csv(iter_df, iter_csv, row.names = FALSE)
 write.csv(summary_df, summary_csv, row.names = FALSE)
