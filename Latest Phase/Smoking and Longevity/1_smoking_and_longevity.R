@@ -371,48 +371,49 @@ dev.off()
 cat("Plot saved to:", plot_path, "\n")
 
 # ============================================================
-# OLD RESULTS ANALYSIS — n=500, seed=42, only rlasso+rboost
+# RESULTS ANALYSIS — n=500, seed=42, only rlasso+rboost
 # ============================================================
 # Setup context:
 #   29 treated out of 500 total (5.8%) — 23 in training, 6 in test
 #   True ATE = 3.20 | tau SD = 2.24
-#   True tau by subgroup: SG1=0.60 (biologically resilient), SG2=7.41 (biologically vulnerable), SG3=4.66 (confounding trap)
+#   True tau by subgroup: SG1=0.599 (biologically resilient), SG2=7.413 (biologically vulnerable), SG3=4.655 (confounding trap)
 #   SG sizes (full sample): SG1=70, SG2=36, SG3=61
 
 # --- NORMALISED MSE ---
-#   rlasso: 1.230 — worse than mean prediction baseline (1.0)
-#   rboost: 1.071 — also worse than baseline, but closer to 1.0
-#   Neither learner beats the mean predictor. This is expected at this sample size: with only ~23 treated observations in training, the o(n^{-1/4}) convergence condition from Nie & Wager (2021) is not met, and heterogeneity recovery fails.
+#   rlasso:     1.2300 — worse than mean prediction baseline (> 1.0)
+#   rboost:     1.0708 — also above baseline, but closer to 1.0
+#   zero_pred:  NormMSE = mean(tau_x)^2 / var(tau_x) >> 1 — far worse, tau is never zero
+#   const_pred: NormMSE >> 1 — naive ATE ~17 vs true ATE ~3.2, massively inflated by confounding
+#   Neither learner beats the mean predictor. Expected at this sample size: with only ~23 treated observations in training, the o(n^{-1/4}) convergence condition from Nie & Wager (2021) is not met.
 
 # --- RANK CORRELATION ---
-#   rlasso: 0.325 (WEAK) — some signal but unreliable individual ranking
-#   rboost: NA    — collapsed to a constant prediction (no variation)
+#   rlasso: 0.3251 (WEAK) — some signal but unreliable individual ranking
+#   rboost: NA            — collapsed to a constant prediction (no variation)
 #   rlasso at least produces variation in estimates across patients.
 #   rboost predicts the same value for everyone — graceful degradation under imbalance but provides no heterogeneity information at all.
 
 # --- SUBGROUP RECOVERY ---
 #   SG1 (resilient — true tau=0.599):
-#     rlasso: rec=6.27 (massively inflated — true tau near floor)
-#     rboost: rec=6.36 (same issue)
-#     Relaxing age to <60 improved sg1_n from 51 to 70 and true_sg1 from 0.55 to 0.60, but the floor problem persists.
-#     SG1 recovery is still unreliable because true_sg1=0.599 is very close to the pmax(0.5) floor, so any small estimation error in the numerator gets amplified when divided by ~0.599.
-#   SG2 (vulnerable — true tau=7.41):
-#     rlasso: rec=0.739 — underestimates by ~26%, attenuated but correct sign
-#     rboost: rec=0.514 — underestimates by ~49%, more severely attenuated
-#     Both learners correctly identify SG2 as high-harm (positive estimates) but substantially underestimate the magnitude due to few treated obs.
-#   SG3 (confounding trap — true tau=4.66):
-#     rlasso: rec=0.706 — underestimates, NOT inflated (correct behaviour)
-#     rboost: rec=0.818 — underestimates, NOT inflated (correct behaviour)
-#     Neither learner falls into the confounding trap at n=500.
-#     sg3_inflated = FALSE for both — the R-learner's propensity residualisation successfully separates confounding from causal effect (could just be a fluke).
+#     rlasso: rec=6.2747 (massively inflated — true tau near pmax(0.5) floor)
+#     rboost: rec=6.3600 (same issue)
+#     SG1 recovery unreliable because true_sg1=0.599 is very close to the floor: any small estimation error in the numerator gets amplified when divided by ~0.599.
+#   SG2 (vulnerable — true tau=7.413):
+#     rlasso: rec=0.7392 — underestimates by ~26%, attenuated but correct sign
+#     rboost: rec=0.5135 — underestimates by ~49%, more severely attenuated
+#     Both learners correctly identify SG2 as high-harm but substantially underestimate magnitude.
+#   SG3 (confounding trap — true tau=4.655):
+#     rlasso: rec=0.7055 — underestimates, NOT inflated (correct behaviour)
+#     rboost: rec=0.8177 — underestimates, NOT inflated (correct behaviour)
+#     Neither learner falls into the confounding trap.
+#     sg3_inflated = FALSE for both — R-learner's propensity residualisation successfully separates confounding from causal effect (could be a fluke at this sample size).
 
 # --- SUBGROUP ORDERING (SG2 > SG3 > SG1) ---
 #   rlasso: FALSE | rboost: FALSE
-#   Neither recovers the correct severity ordering. With only 23 treated training observations, learners cannot reliably rank patients by heterogeneous harm magnitude.
+#   Neither recovers the correct severity ordering. With only ~23 treated training observations, learners cannot reliably rank patients by heterogeneous harm magnitude.
 
 # --- OVERALL INTERPRETATION ---
-#   At n=500 with ~7.5% treatment rate, both R-learner variants operate below the finite-sample threshold needed for reliable CATE estimation. 
-#   The key finding is the pattern of failure:rlasso degrades to a weak-but-nonzero rank signal (0.325), while rboost collapses to a constant — the R-learner with lasso is more informative even in this extreme imbalance regime.
-#   Both learners avoid the confounding trap (SG3 not inflated), confirming the R-loss structure provides robustness to confounding even when heterogeneity recovery fails.
-#   These results motivate scaling to n=1000 (see file 2) where more treated units in training might allow meaningful signal recovery.
+#   At n=500 with ~5.8% treatment rate, both R-learner variants operate below the finite-sample threshold needed for reliable CATE estimation.
+#   Key pattern: rlasso degrades to a weak-but-nonzero rank signal (0.325), while rboost collapses to a constant — rlasso is more informative even under extreme imbalance.
+#   Both avoid the confounding trap (SG3 not inflated), confirming the R-loss structure provides robustness to confounding even when heterogeneity recovery fails.
+#   These results motivate scaling to n=500 (see file 2) where more treated units in training might allow meaningful signal recovery.
 # ============================================================
