@@ -25,7 +25,7 @@ n          = 500        # <<< CHANGE THIS: 300 / 500
 train_frac = 0.80       # 80/20 train-test split — do not change
 
 ## Imp: keep working directory as setwd("~/DSE4231/Rlearner")
-output_dir = "Latest Phase/Smoking and Longevity"
+output_dir = "Latest Phase/Smoking and Longevity/results"
 
 n_train = floor(train_frac * n)
 n_test  = n - n_train

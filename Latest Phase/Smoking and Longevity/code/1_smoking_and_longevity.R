@@ -306,7 +306,7 @@ for (name in c("rlasso", "rboost")) {
 # ============================================================
 
 # Make sure working directory set to Rlearner setwd("~/DSE4231/Rlearner")
-output_dir = "Latest Phase/Smoking and Longevity"
+output_dir = "Latest Phase/Smoking and Longevity/results"
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 results_df = data.frame(

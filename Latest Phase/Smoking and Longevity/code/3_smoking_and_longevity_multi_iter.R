@@ -32,7 +32,7 @@ N_TOTAL    = 500
 TRAIN_FRAC = 0.80
 SIGMA_Y    = 3
 TOP_K_FRAC = 0.075   # evaluate top 7.5% highest-harm patients
-OUTPUT_DIR = "Latest Phase/Smoking and Longevity"
+OUTPUT_DIR = "Latest Phase/Smoking and Longevity/results"
 
 N_TRAIN = floor(TRAIN_FRAC * N_TOTAL)
 N_TEST  = N_TOTAL - N_TRAIN
