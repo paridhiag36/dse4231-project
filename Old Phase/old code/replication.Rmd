@@ -1,0 +1,88 @@
+---
+title: "replication"
+output: html_document
+---
+
+library(rlearner)
+
+generate_data = function(n, d, sigma, setup) {
+  x = matrix(rnorm(n * d), n, d)
+  
+  if (setup == "A") {
+    # Difficult nuisance, simple tau
+    b    = function(x) sin(pi*x[,1]*x[,2]) + 2*(x[,3]-0.5)^2 + x[,4] + 0.5*x[,5]
+    tau  = function(x) (x[,1] + x[,2]) / 2
+    e    = function(x) pmax(0.1, pmin(sin(pi*x[,1]*x[,2]), 0.9))
+    x    = matrix(runif(n*d), n, d)  # Uniform(0,1) for set-up A
+    
+  } else if (setup == "B") {
+    # Randomised trial
+    b    = function(x) pmax(x[,1]+x[,2], x[,3], 0) + pmax(x[,4]+x[,5], 0)
+    tau  = function(x) x[,1] + log(1 + exp(x[,2]))
+    e    = function(x) rep(0.5, nrow(x))
+    
+  } else if (setup == "C") {
+    # Simple propensity, difficult baseline
+    b    = function(x) 2 * log(1 + exp(x[,1] + x[,2] + x[,3]))
+    tau  = function(x) rep(1, nrow(x))
+    e    = function(x) 1 / (1 + exp(x[,2] + x[,3]))
+    
+  } else if (setup == "D") {
+    # Unrelated treatment and control arms
+    b    = function(x) (pmax(x[,1]+x[,2]+x[,3], 0) + pmax(x[,4]+x[,5], 0)) / 2
+    tau  = function(x) pmax(x[,1]+x[,2]+x[,3], 0) - pmax(x[,4]+x[,5], 0)
+    e    = function(x) 1 / (1 + exp(-x[,1]) + exp(-x[,2]))
+  }
+  
+  if (setup != "A") x = matrix(rnorm(n*d), n, d)
+  
+  w     = rbinom(n, 1, e(x))
+  y     = b(x) + (w - 0.5) * tau(x) + sigma * rnorm(n)
+  tau_x = tau(x)
+  
+  list(x=x, w=w, y=y, tau=tau_x)
+}
+
+
+run_replication = function(setup, n, d, sigma, n_reps = 50) {
+  
+  results = data.frame()
+  
+  for (rep in 1:n_reps) {
+    cat("Setup:", setup, "| n:", n, "| d:", d, 
+        "| sigma:", sigma, "| rep:", rep, "\n")
+    
+    dat = generate_data(n, d, sigma, setup)
+    x   = dat$x; w = dat$w; y = dat$y; tau_true = dat$tau
+    
+    mse = tryCatch({
+      r_est = predict(rboost(x, w, y), x)
+      t_est = predict(tboost(x, w, y), x)
+      s_est = predict(sboost(x, w, y), x)
+      x_est = predict(xboost(x, w, y), x)
+      u_est = predict(uboost(x, w, y), x)
+      
+      data.frame(
+        setup = setup, n = n, d = d, sigma = sigma, rep = rep,
+        R = mean((r_est - tau_true)^2),
+        T = mean((t_est - tau_true)^2),
+        S = mean((s_est - tau_true)^2),
+        X = mean((x_est - tau_true)^2),
+        U = mean((u_est - tau_true)^2)
+      )
+    }, error = function(e) {
+      message("Failed rep ", rep, ": ", e$message)
+      NULL
+    })
+    
+    if (!is.null(mse)) results = rbind(results, mse)
+  }
+  results
+}
+
+# Run across paper's parameter grid
+# Start small to verify, then scale up
+results_A = run_replication("A", n=500, d=6, sigma=1, n_reps=10)
+results_B = run_replication("B", n=500, d=6, sigma=1, n_reps=10)
+results_C = run_replication("C", n=500, d=6, sigma=1, n_reps=10)
+results_D = run_replication("D", n=500, d=6, sigma=1, n_reps=10)

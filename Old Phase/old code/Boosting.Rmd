@@ -1,0 +1,14 @@
+---
+title: "Boosting"
+output: html_document
+---
+library(rlearner)
+
+n = 100; p = 10
+x = matrix(rnorm(n*p), n, p)
+w = rbinom(n, 1, 0.5)
+y = pmax(x[,1], 0) * w + x[,2] + pmin(x[,3], 0) + rnorm(n)
+
+rboost_fit = rboost(x, w, y)
+rboost_est = predict(rboost_fit, x)
+print(rboost_est)

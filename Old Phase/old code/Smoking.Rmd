@@ -1,0 +1,325 @@
+---
+title: "Smoking"
+output: html_document
+---
+
+library(MASS)   # for mvrnorm to generate correlated covariates
+library(rlearner)
+
+set.seed(42)
+n = 1000
+
+# ---------------------------------------------------------
+# Step 1: Generate correlated covariates
+# Variables: age, ses, cardio_risk, exercise, diet
+# All generated on a standard normal scale first,
+# then transformed to meaningful ranges afterwards
+# ---------------------------------------------------------
+
+# Correlation matrix reflecting realistic relationships
+cor_matrix = matrix(c(
+  #age   ses   cardio  exercise  diet
+  1.00,  0.10,  0.40,  -0.10,   -0.05,  # age
+  0.10,  1.00,  0.00,   0.35,    0.40,  # ses
+  0.40,  0.00,  1.00,  -0.15,   -0.10,  # cardio_risk
+ -0.10,  0.35, -0.15,   1.00,    0.30,  # exercise
+ -0.05,  0.40, -0.10,   0.30,    1.00   # diet
+), nrow = 5, byrow = TRUE)
+
+# Generate correlated standard normal data
+x_raw = mvrnorm(n, mu = rep(0, 5), Sigma = cor_matrix)
+
+# Transform each variable to a realistic real-world scale
+# Age: 40 to 80 years
+age          = round(40 + 20 * pnorm(x_raw[,1]) * 2)
+age          = pmin(pmax(age, 40), 80)
+
+# SES: 1 to 10 index (1 = lowest, 10 = highest)
+ses          = round(1 + 9 * pnorm(x_raw[,2]))
+ses          = pmin(pmax(ses, 1), 10)
+
+# Cardiovascular risk: 0 to 1 continuous score
+cardio_risk  = pnorm(x_raw[,3])
+
+# Exercise: hours per week, 0 to 20
+exercise     = round(pmax(0, 2 + 4 * x_raw[,4]))
+exercise     = pmin(exercise, 20)
+
+# Diet quality: 1 to 10 index
+diet         = round(1 + 9 * pnorm(x_raw[,5]))
+diet         = pmin(pmax(diet, 1), 10)
+
+# Combine into covariate matrix for rlearner
+# rlearner expects a numeric matrix
+x = cbind(age, ses, cardio_risk, exercise, diet)
+colnames(x) = c("age", "ses", "cardio_risk", "exercise", "diet")
+
+# ---------------------------------------------------------
+# Step 2: Generate treatment W (heavy smoker = 1)
+# Propensity driven by SES primarily, also age and exercise
+# Low SES, older age, less exercise = more likely to smoke
+# Expected smoking rate around 15-20% reflecting reality
+# ---------------------------------------------------------
+
+log_odds_smoking = -2.5              # intercept keeping baseline rate low
+                 - 0.3 * scale(ses)  # lower SES smokes more
+                 + 0.2 * scale(age)  # older cohorts smoke slightly more
+                 - 0.2 * scale(exercise) # less exercise associated with smoking
+
+propensity = plogis(log_odds_smoking)
+
+# Clip to avoid exact 0 or 1 — prevents numerical issues in learners
+propensity = pmax(0.02, pmin(propensity, 0.98))
+
+w = rbinom(n, 1, propensity)
+
+cat("Proportion treated (smokers):", round(mean(w), 3), "\n")
+cat("Propensity score range:", round(range(propensity), 3), "\n")
+
+# ---------------------------------------------------------
+# Step 3: Generate outcome Y (years of healthy life remaining)
+# Baseline b(X): driven by age, cardio risk, SES, diet, exercise
+# Treatment effect tau(X): smoking is more harmful for
+#   those with high cardiovascular risk — this is the
+#   heterogeneity we want learners to detect
+# ---------------------------------------------------------
+
+# Baseline: how long someone would live given their background
+# Age has the strongest negative effect, cardio risk second
+b_x = 30                              # intercept
+    - 0.4 * scale(age)               # older = fewer years remaining
+    - 3.0 * cardio_risk              # high cardio risk = worse baseline
+    + 0.5 * scale(ses)               # higher SES = better outcomes
+    + 0.3 * scale(exercise)          # more exercise = better outcomes
+    + 0.2 * scale(diet)              # better diet = better outcomes
+
+# Treatment effect: smoking reduces healthy years
+# The harm is amplified for those with cardiovascular risk
+# tau is NEGATIVE — smoking shortens life
+tau_x = -3                           # base harm of smoking for everyone
+      - 4 * cardio_risk              # additional harm for high cardio risk
+                                     # so a high-risk smoker loses up to 7 years
+
+# Y generated according to the paper's formula:
+# Y = b(X) + (W - 0.5) * tau(X) + epsilon
+epsilon = rnorm(n, mean = 0, sd = 2)
+y = b_x + (w - 0.5) * tau_x + epsilon
+
+# ---------------------------------------------------------
+# Step 4: Quick sanity checks — look at the data
+# ---------------------------------------------------------
+
+cat("\n--- Summary of covariates ---\n")
+print(summary(x))
+
+cat("\n--- Treatment balance ---\n")
+cat("Smokers (W=1):", sum(w), "\n")
+cat("Non-smokers (W=0):", sum(1-w), "\n")
+
+cat("\n--- Outcome by treatment group ---\n")
+cat("Mean Y for smokers:    ", round(mean(y[w==1]), 2), "\n")
+cat("Mean Y for non-smokers:", round(mean(y[w==0]), 2), "\n")
+
+cat("\n--- True treatment effect summary ---\n")
+cat("Mean tau(X):", round(mean(tau_x), 2), "\n")
+cat("Range of tau(X):", round(range(tau_x), 2), "\n")
+cat("Tau for low cardio risk (< 0.25):", 
+    round(mean(tau_x[cardio_risk < 0.25]), 2), "\n")
+cat("Tau for high cardio risk (> 0.75):", 
+    round(mean(tau_x[cardio_risk > 0.75]), 2), "\n")
+
+cat("\n--- Propensity by SES group ---\n")
+cat("Mean propensity, low SES (<=3): ", 
+    round(mean(propensity[ses <= 3]), 3), "\n")
+cat("Mean propensity, high SES (>=8):", 
+    round(mean(propensity[ses >= 8]), 3), "\n")
+
+# ---------------------------------------------------------
+# Step 5: Fit learners
+# ---------------------------------------------------------
+
+rlasso_fit = rlasso(x, w, y)
+rlasso_est = predict(rlasso_fit, x)
+
+rboost_fit = rboost(x, w, y, verbose = T)
+rboost_est = predict(rboost_fit, x)
+
+cat("\n--- Learner estimates vs true tau ---\n")
+cat("True mean tau:       ", round(mean(tau_x), 3), "\n")
+cat("rlasso mean estimate:", round(mean(rlasso_est), 3), "\n")
+cat("rboost mean estimate:", round(mean(rboost_est), 3), "\n")
+
+cat("\nTrue tau MSE (rlasso):", round(mean((rlasso_est - tau_x)^2), 3), "\n")
+cat("True tau MSE (rboost):", round(mean((rboost_est - tau_x)^2), 3), "\n")
+
+# Collect estimates in a named list for clean looping
+learners = list(
+  rlasso = rlasso_est,
+  rboost = rboost_est
+)
+
+# ---------------------------------------------------------
+# MEASURE 1: Normalised MSE
+# Raw MSE scaled by variance of true tau
+# Interpretation:
+#   < 0.25 = excellent  (capturing > 75% of true heterogeneity)
+#   0.25 to 0.75 = acceptable
+#   > 1.00 = no better than predicting the mean effect for everyone
+# ---------------------------------------------------------
+
+cat("===========================================\n")
+cat("MEASURE 1: Normalised MSE\n")
+cat("===========================================\n")
+
+tau_variance = var(tau_x)
+cat("Variance of true tau(X):", round(tau_variance, 4), "\n")
+cat("Raw MSE threshold for 'no better than mean':", 
+    round(tau_variance, 4), "\n\n")
+
+for (name in names(learners)) {
+  est       = learners[[name]]
+  raw_mse   = mean((est - tau_x)^2)
+  norm_mse  = raw_mse / tau_variance
+  
+  # Classify performance
+  quality = ifelse(norm_mse < 0.25, "EXCELLENT",
+            ifelse(norm_mse < 0.75, "ACCEPTABLE",
+            ifelse(norm_mse < 1.00, "POOR",
+                                    "WORSE THAN MEAN")))
+  
+  cat("Learner:", name, "\n")
+  cat("  Raw MSE:        ", round(raw_mse, 4), "\n")
+  cat("  Normalised MSE: ", round(norm_mse, 4), "\n")
+  cat("  Performance:    ", quality, "\n\n")
+}
+
+# Baseline comparison: what if we just predict the mean tau for everyone?
+mean_pred_mse = mean((mean(tau_x) - tau_x)^2)
+cat("Baseline (constant mean prediction) MSE:", 
+    round(mean_pred_mse, 4), "\n")
+cat("Note: any learner with MSE above this is worse than useless\n\n")
+
+# ---------------------------------------------------------
+# MEASURE 2: Rank Correlation
+# Spearman correlation between estimated and true tau
+# Interpretation:
+#   > 0.80 = reliable ranking of individuals
+#   0.50 to 0.80 = moderate signal, noisy ranking
+#   0.30 to 0.50 = weak signal, mostly unreliable
+#   < 0.30 = essentially random ranking
+# ---------------------------------------------------------
+
+cat("===========================================\n")
+cat("MEASURE 2: Rank Correlation\n")
+cat("===========================================\n")
+
+for (name in names(learners)) {
+  est       = learners[name]
+  rank_corr = cor(est, tau_x, method = "spearman")
+  
+  quality = ifelse(rank_corr > 0.80, "RELIABLE RANKING",
+            ifelse(rank_corr > 0.50, "MODERATE SIGNAL",
+            ifelse(rank_corr > 0.30, "WEAK SIGNAL",
+                                     "ESSENTIALLY RANDOM")))
+  
+  cat("Learner:", name, "\n")
+  cat("  Spearman correlation:", round(rank_corr, 4), "\n")
+  cat("  Ranking quality:     ", quality, "\n\n")
+}
+
+# ---------------------------------------------------------
+# MEASURE 3: Subgroup Recovery
+# Split into low / medium / high cardiovascular risk
+# Check whether learner correctly orders the subgroup estimates
+# Interpretation:
+#   Estimated subgroup difference should be close to true difference
+#   If true gap between low and high risk is 4 years,
+#   learner should estimate at least 3 years (75% recovery)
+# ---------------------------------------------------------
+
+cat("===========================================\n")
+cat("MEASURE 3: Subgroup Recovery\n")
+cat("===========================================\n")
+
+# Define subgroups by cardiovascular risk terciles
+low_risk  = cardio_risk < quantile(cardio_risk, 1/3)
+mid_risk  = cardio_risk >= quantile(cardio_risk, 1/3) & 
+            cardio_risk < quantile(cardio_risk, 2/3)
+high_risk = cardio_risk >= quantile(cardio_risk, 2/3)
+
+# True subgroup effects
+true_low  = mean(tau_x[low_risk])
+true_mid  = mean(tau_x[mid_risk])
+true_high = mean(tau_x[high_risk])
+true_gap  = true_high - true_low   # negative: high risk harmed more
+
+cat("True treatment effects by subgroup:\n")
+cat("  Low cardio risk:  ", round(true_low, 3), "\n")
+cat("  Mid cardio risk:  ", round(true_mid, 3), "\n")
+cat("  High cardio risk: ", round(true_high, 3), "\n")
+cat("  True gap (high - low):", round(true_gap, 3), "\n\n")
+
+for (name in names(learners)) {
+  est = learners[[name]]
+  
+  est_low  = mean(est[low_risk])
+  est_mid  = mean(est[mid_risk])
+  est_high = mean(est[high_risk])
+  est_gap  = est_high - est_low
+  
+  # Recovery ratio: how much of the true gap is captured
+  recovery = est_gap / true_gap
+  
+  # Ordering check: does learner correctly rank subgroups?
+  correct_order = (est_low > est_mid) & (est_mid > est_high)
+  
+  quality = ifelse(recovery > 0.75, "STRONG RECOVERY",
+            ifelse(recovery > 0.50, "MODERATE RECOVERY",
+            ifelse(recovery > 0.25, "WEAK RECOVERY",
+                                    "MISSED HETEROGENEITY")))
+  
+  cat("Learner:", name, "\n")
+  cat("  Estimated low risk:   ", round(est_low, 3), "\n")
+  cat("  Estimated mid risk:   ", round(est_mid, 3), "\n")
+  cat("  Estimated high risk:  ", round(est_high, 3), "\n")
+  cat("  Estimated gap:        ", round(est_gap, 3), "\n")
+  cat("  Recovery ratio:       ", round(recovery, 3), "\n")
+  cat("  Correct ordering:     ", correct_order, "\n")
+  cat("  Subgroup quality:     ", quality, "\n\n")
+}
+
+# ---------------------------------------------------------
+# SUMMARY TABLE
+# ---------------------------------------------------------
+
+cat("===========================================\n")
+cat("SUMMARY TABLE\n")
+cat("===========================================\n")
+
+summary_table = data.frame(
+  Learner     = character(),
+  Raw_MSE     = numeric(),
+  Norm_MSE    = numeric(),
+  Rank_Corr   = numeric(),
+  Recovery    = numeric(),
+  row.names   = NULL
+)
+
+for (name in names(learners)) {
+  est      = learners[[name]]
+  raw_mse  = mean((est - tau_x)^2)
+  norm_mse = raw_mse / tau_variance
+  rank_corr= cor(est, tau_x, method = "spearman")
+  est_gap  = mean(est[high_risk]) - mean(est[low_risk])
+  recovery = est_gap / true_gap
+  
+  summary_table = rbind(summary_table, data.frame(
+    Learner   = name,
+    Raw_MSE   = round(raw_mse, 3),
+    Norm_MSE  = round(norm_mse, 3),
+    Rank_Corr = round(rank_corr, 3),
+    Recovery  = round(recovery, 3)
+  ))
+}
+
+print(summary_table, row.names = FALSE)
