@@ -1,0 +1,18 @@
+
+.Ruserdata
+
+# macOS
+.DS_Store
+
+# R session state
+.Rhistory
+.RData
+.Rapp.history
+
+# RStudio
+.Rproj.user/
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
